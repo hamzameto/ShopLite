@@ -1,0 +1,10 @@
+# Environment variables / secrets — never commit real credentials
+.env
+
+# Dependencies (installed via Composer, not committed — see below)
+/vendor/
+
+# OS/editor junk
+.DS_Store
+Thumbs.db
+.vscode/
