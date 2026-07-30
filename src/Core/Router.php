@@ -14,7 +14,7 @@ namespace App\Core;
  */
 class Router
 {
-    /** @var array<int, array{method:string, regex:string, handler:array}> */
+    /** @var array<int, array{method:string, regex:string, handler:array|\Closure}> */
     private array $routes = [];
 
     /**
@@ -22,8 +22,12 @@ class Router
      *
      * $pattern can contain named parameters like /products/{id}
      * We convert that into a regex like #^/products/(?<id>[^/]+)$#
+     *
+     * $handler can be either:
+     *   - a closure: fn($params) => ...
+     *   - [ControllerClass::class, 'methodName']
      */
-    public function add(string $method, string $pattern, array $handler): void
+    public function add(string $method, string $pattern, array|\Closure $handler): void
     {
         // Turn {id} into a named capture group (?<id>[^/]+)
         $regex = preg_replace('#\{([a-zA-Z_]+)\}#', '(?<$1>[^/]+)', $pattern);
@@ -32,27 +36,27 @@ class Router
         $this->routes[] = [
             'method'  => strtoupper($method),
             'regex'   => $regex,
-            'handler' => $handler, // e.g. [ProductController::class, 'index']
+            'handler' => $handler, // e.g. [ProductController::class, 'index'] or a closure
         ];
     }
 
     // Convenience shortcuts so route definitions read cleanly
-    public function get(string $pattern, array $handler): void
+    public function get(string $pattern, array|\Closure $handler): void
     {
         $this->add('GET', $pattern, $handler);
     }
 
-    public function post(string $pattern, array $handler): void
+    public function post(string $pattern, array|\Closure $handler): void
     {
         $this->add('POST', $pattern, $handler);
     }
 
-    public function put(string $pattern, array $handler): void
+    public function put(string $pattern, array|\Closure $handler): void
     {
         $this->add('PUT', $pattern, $handler);
     }
 
-    public function delete(string $pattern, array $handler): void
+    public function delete(string $pattern, array|\Closure $handler): void
     {
         $this->add('DELETE', $pattern, $handler);
     }
@@ -78,11 +82,18 @@ class Router
                     ARRAY_FILTER_USE_KEY
                 );
 
-                [$class, $methodName] = $route['handler'];
-                $controller = new $class();
+                $handler = $route['handler'];
 
-                // Call e.g. $controller->show($params) with the URL parameters
-                $controller->$methodName($params);
+                if ($handler instanceof \Closure) {
+                    // Handler is a plain function, e.g. fn($params) => ...
+                    // Useful for quick routes/tests without a full Controller class.
+                    $handler($params);
+                } else {
+                    // Handler is [ControllerClass::class, 'methodName']
+                    [$class, $methodName] = $handler;
+                    $controller = new $class();
+                    $controller->$methodName($params);
+                }
                 return;
             }
         }
